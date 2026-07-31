@@ -1,0 +1,144 @@
+name: Genesys Cloud CX as Code - Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "**/*.tftest.hcl"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Select plan to preview changes or apply to deploy the approved test configuration"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
+  TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
+  TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
+
+concurrency:
+  group: genesys-cloud-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate_and_test:
+    name: Format, Validate and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init without backend
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform native tests
+        run: terraform test -no-color
+
+  plan:
+    name: Plan Test Changes
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.action == 'plan' || inputs.action == 'apply') &&
+      github.ref == 'refs/heads/main'
+    needs: validate_and_test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform init with S3 backend
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        run: >-
+          terraform plan
+          -input=false
+          -no-color
+          -var-file=environments/test/test.tfvars
+          -out=tfplan
+
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesys-cloud-test-plan-${{ github.sha }}
+          path: tfplan
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    name: Apply to Genesys Cloud Test
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.action == 'apply' &&
+      github.ref == 'refs/heads/main'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment:
+      name: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform init with S3 backend
+        run: terraform init -input=false
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: genesys-cloud-test-plan-${{ github.sha }}
+          path: .
+
+      - name: Terraform apply saved plan
+        run: terraform apply -input=false -auto-approve tfplan

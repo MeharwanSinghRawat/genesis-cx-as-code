@@ -1,5 +1,5 @@
 variable "genesyscloud_oauthclient_id" {
-  description = "Client ID of the dedicated Genesys Cloud OAuth client that uses the Client Credentials grant."
+  description = "Client ID of the dedicated Genesys Cloud OAuth client configured with the Client Credentials grant."
   type        = string
   sensitive   = true
   nullable    = false
@@ -11,7 +11,7 @@ variable "genesyscloud_oauthclient_id" {
 }
 
 variable "genesyscloud_oauthclient_secret" {
-  description = "Client secret of the dedicated Genesys Cloud OAuth client. Supply this value securely through GitHub Actions."
+  description = "Client secret of the dedicated Genesys Cloud OAuth client. Provide it through a protected GitHub secret."
   type        = string
   sensitive   = true
   nullable    = false
@@ -23,18 +23,18 @@ variable "genesyscloud_oauthclient_secret" {
 }
 
 variable "genesyscloud_region" {
-  description = "AWS region code associated with the target Genesys Cloud organization, for example ap-south-1."
+  description = "AWS region identifier used by the target Genesys Cloud organization, for example ap-south-1."
   type        = string
   nullable    = false
 
   validation {
-    condition     = length(trimspace(var.genesyscloud_region)) > 0
-    error_message = "genesyscloud_region must not be empty."
+    condition     = can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.genesyscloud_region))
+    error_message = "genesyscloud_region must be a valid region identifier such as ap-south-1."
   }
 }
 
 variable "users" {
-  description = "Map of Genesys Cloud users to create or manage. The map key is a stable Terraform identifier for each user."
+  description = "Map of test users managed in Genesys Cloud. Each map key must remain stable because Terraform uses it as the resource instance key."
   type = map(object({
     name       = string
     email      = string
@@ -45,7 +45,7 @@ variable "users" {
 
   validation {
     condition     = length(var.users) > 0
-    error_message = "At least one user must be defined."
+    error_message = "At least one test user must be defined."
   }
 
   validation {

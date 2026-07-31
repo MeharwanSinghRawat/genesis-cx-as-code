@@ -1,0 +1,5 @@
+# Replace placeholder teams with the actual GitHub organization teams.
+*.tf                              @YOUR_ORG/terraform-reviewers
+*.tfvars                          @YOUR_ORG/genesys-reviewers
+.github/workflows/*               @YOUR_ORG/devops-admins
+environments/test/*               @YOUR_ORG/genesys-reviewers
