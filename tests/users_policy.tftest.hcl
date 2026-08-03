@@ -32,7 +32,7 @@ run "validate_test_user_policy" {
 
   assert {
     condition = alltrue([
-      for user in values(var.users) : can(regex("^[^@\s]+@[^@\s]+\.[^@\s]+$", user.email))
+      for user in values(var.users) : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", user.email))
     ])
     error_message = "Every user must have a valid email address."
   }

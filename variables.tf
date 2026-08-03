@@ -57,7 +57,7 @@ variable "users" {
 
   validation {
     condition = alltrue([
-      for user in values(var.users) : can(regex("^[^@\s]+@[^@\s]+\.[^@\s]+$", user.email))
+      for user in values(var.users) : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", user.email))
     ])
     error_message = "Every user must have a valid email address."
   }
