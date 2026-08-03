@@ -48,7 +48,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.15.8
 
       - name: Terraform format check
         run: terraform fmt -check -recursive
@@ -84,7 +84,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.15.8
 
       - name: Terraform init with S3 backend
         run: terraform init -input=false
@@ -129,7 +129,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.15.8
 
       - name: Terraform init with S3 backend
         run: terraform init -input=false
