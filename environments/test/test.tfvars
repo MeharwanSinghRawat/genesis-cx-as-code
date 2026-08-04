@@ -1,4 +1,4 @@
-genesyscloud_region = "ap-south-1"
+genesyscloud_region = "us-east-1"
 
 users = {
   test_user_001 = {
