@@ -1,3 +1,5 @@
+# CODEOWNERS validation for the Genesys Cloud administrators team
+
 genesyscloud_region = "us-east-1"
 
 users = {
