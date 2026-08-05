@@ -1,5 +1,67 @@
-# Replace placeholder teams with the actual GitHub organization teams.
-*.tf                              @YOUR_ORG/terraform-reviewers
-*.tfvars                          @YOUR_ORG/genesys-reviewers
-.github/workflows/*               @YOUR_ORG/devops-admins
-environments/test/*               @YOUR_ORG/genesys-reviewers
+Use this configuration:
+# ============================================================
+# Default ownership
+# ============================================================
+
+# Any file without a more specific rule is owned by this team
+* @vikramancareer-org/cx-as-code-reviewers
+
+
+# ============================================================
+# Terraform configuration
+# ============================================================
+
+# Terraform files anywhere in the repository
+*.tf @vikramancareer-org/cx-as-code-reviewers
+
+# Terraform native test files anywhere in the repository
+*.tftest.hcl @vikramancareer-org/cx-as-code-reviewers
+
+# Terraform variable files anywhere in the repository
+*.tfvars @vikramancareer-org/genesys-cloud-admins
+
+# Terraform dependency lock file in the repository root
+/.terraform.lock.hcl @vikramancareer-org/cx-as-code-platform-admins
+
+
+# ============================================================
+# Environment-specific configuration
+# ============================================================
+
+# Any file under the test environment directory
+/environments/test/ @vikramancareer-org/genesys-cloud-admins
+
+
+# ============================================================
+# GitHub Actions and automation
+# ============================================================
+
+# GitHub Actions workflow files
+/.github/workflows/ @vikramancareer-org/cx-as-code-platform-admins
+
+# Dependabot configuration
+/.github/dependabot.yml @vikramancareer-org/cx-as-code-platform-admins
+
+
+# ============================================================
+# Repository governance
+# ============================================================
+
+# CODEOWNERS configuration
+/.github/CODEOWNERS @vikramancareer-org/cx-as-code-platform-admins
+
+# Pull request template
+/.github/pull_request_template.md @vikramancareer-org/cx-as-code-platform-admins
+
+# Repository ignore rules
+/.gitignore @vikramancareer-org/cx-as-code-platform-admins
+
+
+# ============================================================
+# Terraform backend and provider governance
+# ============================================================
+
+# Sensitive root-level Terraform configuration
+/backend.tf @vikramancareer-org/cx-as-code-platform-admins
+/providers.tf @vikramancareer-org/cx-as-code-platform-admins
+/versions.tf @vikramancareer-org/cx-as-code-platform-admins
