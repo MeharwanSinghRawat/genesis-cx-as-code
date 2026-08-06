@@ -1,16 +1,37 @@
 ## Change summary
 
-Describe the Genesys Cloud configuration change.
+Describe the Terraform or Genesys Cloud change.
 
-## Validation
+## Environment
+
+- [ ] Test
+
+## Terraform validation
 
 - [ ] `terraform fmt -check -recursive` passed
 - [ ] `terraform validate` passed
 - [ ] `terraform test` passed
-- [ ] Terraform plan was reviewed
-- [ ] No credentials or state files are included
-- [ ] Test user data is approved
 
-## Rollback
+## Plan summary
 
-Describe how the configuration will be restored if validation fails.
+```text
+Resources to add:
+Resources to change:
+Resources to destroy:
+Resources to replace:
+```
+
+## Security review
+
+- [ ] No credentials, passwords, or sensitive values are committed
+- [ ] No unexpected Genesys Cloud division access is introduced
+- [ ] OAuth permissions follow least privilege
+- [ ] No unexpected resource deletion or replacement is planned
+
+## Rollback plan
+
+Describe how the change will be rolled back.
+
+## Additional notes
+
+Add any related change request, incident, or testing reference.
