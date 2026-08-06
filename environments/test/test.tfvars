@@ -9,4 +9,10 @@ users = {
     title      = "Test Agent"
     department = "Cloud Operations"
   }
+  test_user_003 = {
+    name       = "test_user-3"
+    email      = "test_user-3@oticon.com"
+    title      = "Test Agent -3"
+    department = "Cloud Operations"
+  }
 }
