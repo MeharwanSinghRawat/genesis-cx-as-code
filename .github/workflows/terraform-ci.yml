@@ -1,0 +1,75 @@
+# Runs Terraform validation checks for pull requests.
+# This workflow does not authenticate to AWS or deploy any resources.
+name: Terraform CI
+
+# Run the workflow when a pull request targets the main branch
+# and contains changes to Terraform or workflow files.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      # Terraform configuration files anywhere in the repository
+      - "**/*.tf"
+      # Terraform variable files anywhere in the repository
+      - "**/*.tfvars"
+      # Terraform native test files anywhere in the repository
+      - "**/*.tftest.hcl"
+      # Terraform provider dependency lock file
+      - ".terraform.lock.hcl"
+      # GitHub Actions workflow files
+      - ".github/workflows/**"
+
+# Grant the workflow read-only access to repository contents.
+# AWS OIDC permission is not required because this workflow does not deploy.
+permissions:
+  contents: read
+
+# Allow only the latest CI run for the same pull request to continue.
+# When a new commit is pushed, the previous in-progress run is cancelled.
+concurrency:
+  group: terraform-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate_and_test:
+    # This name appears as the status check in the pull request.
+    name: Format, Validate and Test
+    # Use the latest GitHub-hosted Ubuntu runner.
+    runs-on: ubuntu-latest
+    # Stop the job if it runs longer than 15 minutes.
+    timeout-minutes: 15
+
+    steps:
+      # Download the pull-request source code to the runner.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install the required Terraform CLI version.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+
+      # Display the installed Terraform version in the workflow logs.
+      - name: Display Terraform version
+        run: terraform version
+
+      # Verify that all Terraform files follow the standard format.
+      # The command checks Terraform files recursively without changing them.
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      # Initialize the Terraform working directory without connecting
+      # to the remote backend or accessing Terraform state.
+      - name: Terraform init without backend
+        run: terraform init -backend=false -input=false
+
+      # Validate the Terraform syntax and internal configuration.
+      # The no-color option keeps the workflow output clean and readable.
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      # Run Terraform native tests defined in .tftest.hcl files.
+      - name: Terraform native tests
+        run: terraform test -no-color

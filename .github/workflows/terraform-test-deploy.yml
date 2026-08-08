@@ -1,0 +1,212 @@
+# Manually plans or applies Terraform changes to the
+# Genesys Cloud test environment from the main branch.
+name: Genesys Cloud CX as Code - Test Deployment
+
+# This workflow must be started manually.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Select plan to preview changes or apply to deploy the approved test configuration"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+
+# Prevent multiple workflow runs from modifying the same
+# Terraform state and test environment simultaneously.
+concurrency:
+  group: genesys-cloud-test
+  cancel-in-progress: false 
+
+# Common Terraform settings available to all jobs.
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  validate_and_test:
+    # Run validation again before creating a deployment plan.
+    name: Format, Validate and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Validation requires only read access to the repository.
+    permissions:
+      contents: read 
+
+    steps:
+      # Download the main branch source code to the runner.
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+
+      # Install the required Terraform CLI version.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8" 
+
+      # Display the installed Terraform version in the logs.
+      - name: Display Terraform version
+        run: terraform version
+
+      # Confirm that all Terraform files follow standard formatting.
+      - name: Terraform format check
+        run: terraform fmt -check -recursive 
+
+      # Initialize without accessing the remote backend or Terraform state.
+      - name: Terraform init without backend
+        run: terraform init -backend=false -input=false
+
+      # Validate the Terraform configuration.
+      - name: Terraform validate
+        run: terraform validate -no-color 
+
+      # Run the Terraform native tests.
+      - name: Terraform native tests
+        run: terraform test -no-color 
+
+  plan:
+    # Create the deployment plan after validation succeeds.
+    name: Plan Test Changes
+    needs: validate_and_test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Run only for a manual workflow started from the main branch.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.action == 'plan' || inputs.action == 'apply') &&
+      github.ref == 'refs/heads/main'
+
+    # The plan job needs an OIDC token to assume the AWS IAM role.
+    permissions:
+      contents: read
+      id-token: write
+
+    # Provide the Genesys Cloud provider variables only to this job.
+    env:
+      TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
+      TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
+      TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
+ 
+    steps:
+      # Download the approved main branch code.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Obtain short-lived AWS credentials using GitHub OIDC.
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }} 
+
+      # Install the required Terraform CLI version.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8" 
+
+      # Initialize Terraform with the remote S3 backend.
+      - name: Terraform init with S3 backend
+        run: terraform init -input=false 
+
+      # Create and save the exact Terraform plan that may be applied.
+      - name: Terraform plan
+        run: >-
+          terraform plan
+          -input=false
+          -no-color
+          -var-file=environments/test/test.tfvars
+          -out=tfplan 
+
+      # Generate a SHA-256 checksum for plan integrity verification.
+      - name: Generate Terraform plan checksum
+        run: sha256sum tfplan > tfplan.sha256
+ 
+      # Upload the saved plan and checksum for the Apply job.
+      # The artifact is retained for only one day because a plan
+      # can contain sensitive infrastructure information.
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesys-cloud-test-plan-${{ github.sha }}
+          path: |
+            tfplan
+            tfplan.sha256
+          if-no-files-found: error
+          retention-days: 1 
+
+  apply: 
+    # Apply the exact saved plan after the test environment approval.
+    name: Apply to Genesys Cloud Test
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+ 
+    # Run only when the manually selected action is apply
+    # and the workflow is running from the main branch. 
+
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.action == 'apply' &&
+      github.ref == 'refs/heads/main'
+ 
+    # Referencing the test environment activates its required 
+    # reviewers, self-review prevention, and branch restrictions.
+    environment:
+      name: test
+ 
+    # The Apply job also needs an OIDC token to access the S3 state.
+    permissions:
+      contents: read
+      id-token: write
+ 
+
+    # Provide the Genesys Cloud provider variables only to this job.
+    env:
+      TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
+      TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
+      TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
+ 
+
+    steps:
+      # Download the same main branch code used by the Plan job.
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+
+      # Obtain short-lived AWS credentials using GitHub OIDC.
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+ 
+      # Install the same Terraform version used by the Plan job.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8" 
+
+      # Initialize Terraform with the remote S3 backend.
+      - name: Terraform init with S3 backend
+        run: terraform init -input=false
+ 
+      # Download the plan created by the Plan job in this workflow run.
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: genesys-cloud-test-plan-${{ github.sha }}
+          path: . 
+
+      # Confirm that the downloaded plan has not been modified.
+      - name: Verify Terraform plan checksum
+        run: sha256sum --check tfplan.sha256
+
+      # Apply exactly the saved and verified Terraform plan.
+      # Terraform does not generate a new plan in this step.
+      - name: Terraform apply saved plan
+        run: terraform apply -input=false -auto-approve tfplan
