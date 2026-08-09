@@ -8,17 +8,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      # Terraform configuration files anywhere in the repository
-      - "**/*.tf"
-      # Terraform variable files anywhere in the repository
-      - "**/*.tfvars"
-      # Terraform native test files anywhere in the repository
-      - "**/*.tftest.hcl"
-      # Terraform provider dependency lock file
-      - ".terraform.lock.hcl"
-      # GitHub Actions workflow files
-      - ".github/workflows/**"
 
 # Grant the workflow read-only access to repository contents.
 # AWS OIDC permission is not required because this workflow does not deploy.
