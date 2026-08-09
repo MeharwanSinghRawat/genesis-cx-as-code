@@ -1,12 +1,21 @@
 # Terraform working directory and generated files
 .terraform/
 .terraform.lock.hcl.backup
+
+# Terraform state files
 *.tfstate
 *.tfstate.*
-*.tfplan
+
+# Terraform plan files
 tfplan
+tfplan.*
+*.tfplan
+*.tfplan.*
+
+# Terraform crash and debug logs
 crash.log
 crash.*.log
+*.log
 
 # Sensitive local inputs
 *.auto.tfvars
@@ -15,8 +24,24 @@ crash.*.log
 .env
 .env.*
 
-# Editor and operating system files
+# Local Terraform CLI configuration
+.terraformrc
+terraform.rc
+
+# Local Terraform override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local backup files
+*.bak
+*.backup
+
+# Editor files and directories
 .vscode/
 .idea/
+
+# Operating system files
 .DS_Store
 Thumbs.db
