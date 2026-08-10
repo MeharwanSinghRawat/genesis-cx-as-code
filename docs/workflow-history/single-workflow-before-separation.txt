@@ -1,5 +1,3 @@
-# CODEOWNERS validation for the platform administrators team
-
 name: Genesys Cloud CX as Code - Test
 
 on:
