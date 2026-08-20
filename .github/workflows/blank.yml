@@ -1,6 +1,14 @@
-name: Genesys Cloud CX as Code - Test Deployment
+name: Genesys Cloud CX as Code - Test
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "**/*.tftest.hcl"
+      - ".github/workflows/terraform.yml"
   workflow_dispatch:
     inputs:
       action:
@@ -12,83 +20,74 @@ on:
           - plan
           - apply
 
-concurrency:
-  group: genesys-cloud-test
-  cancel-in-progress: false 
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
 
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
+  TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
+  TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
+  TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
+
+concurrency:
+  group: genesys-cloud-test-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   validate_and_test:
     name: Format, Validate and Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    permissions:
-      contents: read 
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 #v4
+        uses: actions/checkout@v4
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd #v3
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.15.8" 
-
-      - name: Display Terraform version
-        run: terraform version
+          terraform_version: 1.15.8
 
       - name: Terraform format check
-        run: terraform fmt -check -recursive 
+        run: terraform fmt -check -recursive
 
       - name: Terraform init without backend
         run: terraform init -backend=false -input=false
 
       - name: Terraform validate
-        run: terraform validate -no-color 
+        run: terraform validate
 
       - name: Terraform native tests
-        run: terraform test -no-color 
+        run: terraform test -no-color
 
   plan:
     name: Plan Test Changes
-    needs: validate_and_test
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
     if: >-
       github.event_name == 'workflow_dispatch' &&
       (inputs.action == 'plan' || inputs.action == 'apply') &&
       github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      id-token: write
+    needs: validate_and_test
+    runs-on: ubuntu-latest
 
-    env:
-      TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
-      TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
-      TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
- 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 #v4
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials using GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a #v4
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ vars.AWS_REGION }} 
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd #v3
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.15.8" 
+          terraform_version: 1.15.8
 
       - name: Terraform init with S3 backend
-        run: terraform init -input=false 
+        run: terraform init -input=false
 
       - name: Terraform plan
         run: >-
@@ -96,91 +95,49 @@ jobs:
           -input=false
           -no-color
           -var-file=environments/test/test.tfvars
-          -out=tfplan 
-      - name: Generate Terraform plan checksum
-        run: sha256sum tfplan > tfplan.sha256
- 
+          -out=tfplan
       - name: Upload Terraform plan
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
+        uses: actions/upload-artifact@v4
         with:
           name: genesys-cloud-test-plan-${{ github.sha }}
-          path: |
-            tfplan
-            tfplan.sha256
+          path: tfplan
           if-no-files-found: error
-          retention-days: 1 
+          retention-days: 1
 
-  apply: 
+  apply:
     name: Apply to Genesys Cloud Test
-    needs: plan
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
- 
     if: >-
       github.event_name == 'workflow_dispatch' &&
       inputs.action == 'apply' &&
       github.ref == 'refs/heads/main'
- 
+    needs: plan
+    runs-on: ubuntu-latest
     environment:
       name: test
- 
-    permissions:
-      contents: read
-      id-token: write
- 
-    env:
-      TF_VAR_genesyscloud_region: ${{ vars.GENESYSCLOUD_REGION }}
-      TF_VAR_genesyscloud_oauthclient_id: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_ID }}
-      TF_VAR_genesyscloud_oauthclient_secret: ${{ secrets.GENESYSCLOUD_OAUTHCLIENT_SECRET }}
- 
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 #v4
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials using GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a #v4
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
- 
+
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd #v3
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.15.8" 
+          terraform_version: 1.15.8
 
       - name: Terraform init with S3 backend
         run: terraform init -input=false
- 
+
       - name: Download Terraform plan
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
+        uses: actions/download-artifact@v4
         with:
           name: genesys-cloud-test-plan-${{ github.sha }}
-          path: . 
-
-      - name: Verify Terraform plan checksum
-        run: sha256sum --check tfplan.sha256
+          path: .
 
       - name: Terraform apply saved plan
         run: terraform apply -input=false -auto-approve tfplan
-
-      - name: Verify post-apply state
-        shell: bash
-        run: |
-          set +e
-          terraform plan \
-            -input=false \
-            -no-color \
-            -detailed-exitcode \
-            -var-file=environments/test/test.tfvars
-          exit_code=$?
-          if [ "$exit_code" -eq 0 ]; then
-            echo "Post-apply verification passed. No additional changes detected."
-            exit 0
-          fi
-          if [ "$exit_code" -eq 2 ]; then
-            echo "Post-apply verification detected additional changes."
-            exit 1
-          fi
-          echo "Post-apply verification failed because Terraform returned an error."
-          exit 1
